@@ -1,0 +1,9 @@
+pandas
+scikit-learn
+xgboost
+mlflow>=2.0.0
+alibi-detect
+databricks-sql-connector
+pyyaml
+dotenv
+seaborn

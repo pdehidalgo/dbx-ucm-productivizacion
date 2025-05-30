@@ -1,0 +1,5 @@
+{
+    "model_type": "random_forest", 
+    "main_metric": "accuracy",
+    "metrics": "accuracy,precision"
+}

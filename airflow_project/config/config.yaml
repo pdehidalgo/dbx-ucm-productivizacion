@@ -1,0 +1,13 @@
+paths:
+  data: "/opt/airflow/data/train.csv"
+  test: "/opt/airflow/data/test.csv"
+  predictions: "/opt/airflow/data/predictions.csv"
+
+mlflow:
+  experiment_name: "ml_pipeline_experiment"
+  model_name: "airflow_ml_model"
+
+factories:
+  data_source_type: "local"  # "delta"
+  training_table: "default.training_table"
+  test_table: "default.test_table"
