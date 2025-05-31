@@ -78,7 +78,7 @@ def conversation_tracking(user_id: int, text_message: str) -> str:
     logging.info(f"{user_id} (user): {text_message}")
 
     response = generate_response_chat(user_convo)
-    
+
     user_convo.append({"role": "assistant", "content": response})
     logging.info(f"{user_id} (bot): {response}")
 
@@ -89,7 +89,7 @@ def conversation_tracking(user_id: int, text_message: str) -> str:
 def generate_response_chat(message_list):
 
     ## Incluye tu código de llamada aquí 
-    chat_completion ...
+    chat_completion = client....
     return chat_completion.choices[0].message.content
 
 
@@ -121,6 +121,8 @@ class OpenAIWhispersVoiceHandler(TranscribeVoiceHandler):
 
         try:
             # Tu bloque de código va aquí. 
+            audio_file = open("voice_message.mp3", "rb")
+            transcription = ....
 
             return 
         except Exception as e:
@@ -128,6 +130,7 @@ class OpenAIWhispersVoiceHandler(TranscribeVoiceHandler):
             return "I text you back later..."
 
 # 3. Rellena tu función para manejar eventos de voz. 
+transcription_handler = OpenAIWhispersVoiceHandler()
 
 @bot.message_handler(content_types=["voice"])
 def on_voice(message):
