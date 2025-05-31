@@ -21,6 +21,21 @@
 "console": "integratedTerminal"
 },]}
 
+requirements.txt
+
+```plaintext
+telebot==0.0.5
+openai==1.16.2
+python-dotenv==1.0.1
+telethon==1.34.0
+notebook==7.2.2
+requests-oauthlib==2.0.0
+black==25.1.0
+isort==6.0.1
+openai-agents==0.0.6
+```
+
+
 ## 4. Separación por equipos y diseño de la solución. 
 
 .env template 
