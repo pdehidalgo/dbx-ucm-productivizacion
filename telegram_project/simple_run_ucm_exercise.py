@@ -22,7 +22,7 @@ logging.basicConfig(
 conversations = {}
 
 client = OpenAI(api_key=config["OPENAI_API_KEY"])
-
+# TODO: Azure OpenAI client
 
 
 #####################
@@ -55,26 +55,30 @@ def on_text(message):
     
 def handle_text_message(bot, message):
 
-    # Revise que nuestro ID es válido y está en la WHITE LIST
+    # Ex1: Revise que nuestro ID es válido y está en la WHITE LIST
 
     # Guarde el estado de la conversación y genere una respuesta apropiada
     response = conversation_tracking(message.from_user.id, message.text)
-
-    # Envíe la respuesta al usuario
-    bot.send_message(message.chat.id, response)
 
     # Opcional: Sabiendo que podemos realizar acciones sobre el chat de telegram como la siguiente: 
     # bot.send_chat_action(chat_id, "typing")
     # Implementa con tu equipo una función que haga que escriba en base al número de palabras 
 
+    # Envíe la respuesta al usuario
+    bot.send_message(message.chat.id, response)
+
+
 
 def conversation_tracking(user_id: int, text_message: str) -> str:
+
     # Esta función está bastante acoplada, ¿se puede mejorar? 
+
     user_convo = conversations.get(user_id, [])
     user_convo.append({"role": "user", "content": text_message})
     logging.info(f"{user_id} (user): {text_message}")
 
     response = generate_response_chat(user_convo)
+    
     user_convo.append({"role": "assistant", "content": response})
     logging.info(f"{user_id} (bot): {response}")
 
