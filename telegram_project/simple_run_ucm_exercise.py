@@ -99,11 +99,19 @@ def generate_response_chat(message_list):
 
 
 # 1. Crea un TranscribeVoiceHandler que obligue a que el resto de VoiceHandlers tengan la misma estructura
+from abc import ABC, abstractmethod
 
-class TranscribeVoiceHandler...
-
+class TranscribeVoiceHandler(ABC):
+    @abstractmethod
+    def transcribing_voice(self):
+        pass
 
 # 2. Basado en la documentación de OpenAI, genera un código que permita transcribir el audio a texto
+
+class LocalWhispersVoiceHandler(TranscribeVoiceHandler):
+    def transcribing_voice(self):
+        raise 
+
 
 class OpenAIWhispersVoiceHandler(TranscribeVoiceHandler):
 
@@ -121,10 +129,16 @@ class OpenAIWhispersVoiceHandler(TranscribeVoiceHandler):
 
         try:
             # Tu bloque de código va aquí. 
-            audio_file = open("voice_message.mp3", "rb")
-            transcription = ....
+            try: 
+                audio_file = open("voice_message.mp3", "rb")
+            except Exception as e: 
+                logging.error(f'error al accer al fichero{e.args}')
 
-            return 
+            transcription = self.client.audio.transcribing.create(
+                model="whisper-1", file=audio_file
+            )
+
+            return transcription.text
         except Exception as e:
             logging.error(f"Error transcribing with Whispers {e}")
             return "I text you back later..."
