@@ -54,4 +54,6 @@ ast.literal_eval(os.getenv("ALLOWED_USERS"))
 
 ### 4.1 Creación whispers endpoint en Azure
 
+- Instalación de [ffmpeg](https://www.ffmpeg.org/download.html)
+
 ## 5. Presentación de PRs, mergeo y resultados obtenidos. 
