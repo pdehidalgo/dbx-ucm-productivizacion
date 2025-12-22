@@ -7,6 +7,8 @@ import requests
 import telebot
 from dotenv import load_dotenv
 from openai import AzureOpenAI
+# Enterprise ready
+# Probamos y sino desplegamos el Martes
 from pydub import AudioSegment
 
 load_dotenv()
@@ -15,6 +17,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 conversations = {}
 WHITELIST = [710453674]
+# ID de telegram, buscar id
 
 endpoint = os.getenv("OPENAI_ENDPOINT")
 model_name = "gpt-4o-mini"
@@ -157,6 +160,18 @@ def handle_voice_message_simple(bot, message, transcription_handler):
     response = conversation_tracking(user_id, text)
 
     bot.reply_to(message, response)
+
+
+# Como gestionar imágenes
+@bot.message_handler(content_types=["image"])
+def on_image(message):
+
+    # Recuperar imagen de los servers de telegram
+
+    # Pasarla a base64
+
+    # Llamar al LLM
+    pass
 
 
 if __name__ == "__main__":
