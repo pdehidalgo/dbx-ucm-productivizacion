@@ -183,7 +183,7 @@ def run_experiments() -> None:
         """Visually, the blue screen indicates that the system has stopped due to a serious technical problem. The error is related to a custom video driver (AcmeVideo.sys), suggesting the user could be someone who uses graphics software or non-standard hardware.""",
     ]
 
-    image_path = "./images/error01.png"
+    image_path = "./images/linux_error.png"
     if not os.path.exists(image_path):
         logger.warning(
             f"Image file for experiments not found at {image_path}. Skipping experiments."
