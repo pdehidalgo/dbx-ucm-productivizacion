@@ -3,4 +3,5 @@ members = [
     "airflow_project",
     "telegram_project",
     "databricks_project",
+    "cml_project",
 ]

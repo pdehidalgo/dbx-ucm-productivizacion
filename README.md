@@ -1,10 +1,11 @@
 # Monorepo con uv
 
-Este repositorio está organizado como un monorepo de `uv` con 3 proyectos:
+Este repositorio está organizado como un monorepo de `uv` con 4 proyectos:
 
 - `airflow_project`
 - `telegram_project`
 - `databricks_project`
+- `cml_project`
 
 ## Comandos rápidos
 
@@ -12,13 +13,14 @@ Este repositorio está organizado como un monorepo de `uv` con 3 proyectos:
 # Generar lockfile del workspace completo
 uv lock
 
-# Crear/sincronizar entorno con todas las dependencias de los 3 proyectos
+# Crear/sincronizar entorno con todas las dependencias de los 4 proyectos
 uv sync --all-packages
 
 # Ejecutar scripts por proyecto
 uv run --project telegram_project python telegram_project/evaluate_prompts.py --mode run_experiments
 uv run --project airflow_project python airflow_project/dags/test_pipeline.py
 uv run --project databricks_project python databricks_project/ML_Lab_MLflow_Databricks.py
+uv run --project cml_project python cml_project/src/train.py
 ```
 
 Los notebooks/scripts de Databricks se encuentran ahora en `databricks_project/`.

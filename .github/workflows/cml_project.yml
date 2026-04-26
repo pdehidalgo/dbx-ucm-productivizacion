@@ -1,0 +1,124 @@
+name: CML Project
+
+on:
+  pull_request:
+    paths:
+      - "cml_project/**"
+      - ".github/workflows/cml_project.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  data-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            cml_project/pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --locked --package cml_project
+
+      - name: Build dataset
+        run: uv run --project cml_project python cml_project/src/get_data.py
+
+      - name: Validate dataset
+        run: uv run --project cml_project python cml_project/src/validate_data.py
+
+      - name: Upload validated data
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-data
+          path: |
+            cml_project/data/processed
+            cml_project/artifacts/data_validation.json
+            cml_project/artifacts/data_validation.md
+
+  train-evaluate:
+    needs: data-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            cml_project/pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --locked --package cml_project
+
+      - name: Download validated data
+        uses: actions/download-artifact@v4
+        with:
+          name: validated-data
+          path: .
+
+      - name: Train and evaluate models
+        run: uv run --project cml_project python cml_project/src/train.py
+
+      - name: Upload training outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-results
+          path: |
+            cml_project/artifacts/data_validation.json
+            cml_project/artifacts/metrics.json
+            cml_project/artifacts/metrics.txt
+            cml_project/artifacts/leaderboard.csv
+            cml_project/artifacts/confusion_matrix.png
+
+  cml-report:
+    needs: train-evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            cml_project/pyproject.toml
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v2
+
+      - name: Install dependencies
+        run: uv sync --locked --package cml_project
+
+      - name: Download training outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: training-results
+          path: .
+
+      - name: Build markdown report
+        run: uv run --project cml_project python cml_project/src/build_report.py
+
+      - name: Publish CML report to PR
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cml comment create cml_project/report.md
