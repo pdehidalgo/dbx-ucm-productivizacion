@@ -5,7 +5,8 @@ from pathlib import Path
 
 
 def main() -> None:
-    artifacts_dir = Path("artifacts")
+    project_root = Path(__file__).resolve().parents[1]
+    artifacts_dir = project_root / "artifacts"
     metrics_path = artifacts_dir / "metrics.json"
     validation_path = artifacts_dir / "data_validation.json"
     metrics_md_path = artifacts_dir / "metrics.txt"
@@ -45,8 +46,9 @@ def main() -> None:
         '![Confusion Matrix](./artifacts/confusion_matrix.png "Confusion Matrix")',
     ]
 
-    Path("report.md").write_text("\n".join(report_lines) + "\n", encoding="utf-8")
-    print("Report generated -> report.md")
+    report_path = project_root / "report.md"
+    report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
+    print(f"Report generated -> {report_path}")
 
 
 if __name__ == "__main__":

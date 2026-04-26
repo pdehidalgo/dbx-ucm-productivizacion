@@ -29,8 +29,9 @@ def format_markdown_table(df: pd.DataFrame) -> str:
 
 
 def main() -> None:
-    data_dir = Path("data/processed")
-    artifacts_dir = Path("artifacts")
+    project_root = Path(__file__).resolve().parents[1]
+    data_dir = project_root / "data" / "processed"
+    artifacts_dir = project_root / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     train_df = pd.read_csv(data_dir / "train.csv")
