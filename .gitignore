@@ -1,1 +1,3 @@
 my_entorno_env/
+airflow_project/mlruns/*
+airflow_project/dags/__pycache__/*
