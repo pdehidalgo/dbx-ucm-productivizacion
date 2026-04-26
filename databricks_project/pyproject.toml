@@ -1,0 +1,15 @@
+[project]
+name = "databricks-project"
+version = "0.1.0"
+description = "Databricks notebooks and MLflow examples"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "databricks-sql-connector",
+    "mlflow>=2.0.0",
+    "pyspark>=3.5.0",
+    "requests>=2.31.0",
+]
+
+[tool.uv]
+package = false

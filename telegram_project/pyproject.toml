@@ -1,28 +1,30 @@
-[tool.poetry]
-name = "johndoecustom-bot"
+[project]
+name = "telegram-project"
 version = "0.1.0"
-description = ""
-authors = ["pdhidalgo <pdhidalgo198@gmail.com>"]
-readme = "README.md"
+description = "Telegram bot and MLflow prompt evaluation utilities"
+readme = "Ejercicio.md"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "gtts>=2.5.1",
+    "mlflow>=2.0.0",
+    "notebook>=7.2.2",
+    "openai>=1.16.2",
+    "openai-agents>=0.0.6",
+    "pydub>=0.25.1",
+    "python-dotenv>=1.0.1",
+    "requests>=2.31.0",
+    "requests-oauthlib>=2.0.0",
+    "speechrecognition[whisper-local]>=3.10.3",
+    "telebot>=0.0.5",
+    "telethon>=1.34.0",
+    "tts>=0.22.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.12"
-telebot = "^0.0.5"
-openai = "^1.16.2"
-pydub = "^0.25.1"
-speechrecognition = {extras = ["whisper-local"], version = "^3.10.3"}
-gtts = "^2.5.1"
-python-dotenv = "^1.0.1"
-tts = "^0.22.0"
-telethon = "^1.34.0"
-asyncio = "^3.4.3"
-notebook = "^7.2.2"
-requests-oauthlib = "^2.0.0"
-black = "^25.1.0"
-isort = "^6.0.1"
-openai-agents = "^0.0.6"
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "isort>=6.0.1",
+]
 
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false

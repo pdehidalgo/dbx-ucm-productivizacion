@@ -1,0 +1,20 @@
+[project]
+name = "airflow-project"
+version = "0.1.0"
+description = "Airflow pipelines for the UCM productivizacion lab"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "alibi-detect",
+    "databricks-sql-connector",
+    "mlflow>=2.0.0",
+    "pandas",
+    "python-dotenv",
+    "pyyaml",
+    "scikit-learn",
+    "seaborn",
+    "xgboost",
+]
+
+[tool.uv]
+package = false
