@@ -3,26 +3,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import joblib
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    ConfusionMatrixDisplay,
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-)
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
 def format_markdown_table(df: pd.DataFrame) -> str:
-    header = "| model | accuracy | precision | recall | f1 |"
-    separator = "|---|---:|---:|---:|---:|"
+    header = "| model | rmse | mae | r2 |"
+    separator = "|---|---:|---:|---:|"
     rows = [
-        f"| {row.model} | {row.accuracy:.4f} | {row.precision:.4f} | {row.recall:.4f} | {row.f1:.4f} |"
+        f"| {row.model} | {row.rmse:.4f} | {row.mae:.4f} | {row.r2:.4f} |"
         for row in df.itertuples(index=False)
     ]
     return "\n".join([header, separator, *rows])
@@ -43,23 +38,30 @@ def main() -> None:
     x_test = test_df[feature_cols]
     y_test = test_df["target"]
 
-    models: dict[str, Pipeline | RandomForestClassifier] = {
-        "logistic_regression": Pipeline(
+    models: dict[str, object] = {
+        "linear_regression": Pipeline(
             [
                 ("scaler", StandardScaler()),
-                ("clf", LogisticRegression(max_iter=400, random_state=42)),
+                ("reg", LinearRegression()),
             ]
         ),
-        "random_forest": RandomForestClassifier(
-            n_estimators=300,
-            max_depth=8,
+        "random_forest": RandomForestRegressor(
+            n_estimators=400,
+            max_depth=18,
+            min_samples_leaf=2,
             random_state=42,
             n_jobs=-1,
+        ),
+        "hist_gradient_boosting": HistGradientBoostingRegressor(
+            learning_rate=0.08,
+            max_depth=10,
+            max_iter=400,
+            random_state=42,
         ),
     }
 
     results: list[dict[str, float | str]] = []
-    fitted_models: dict[str, Pipeline | RandomForestClassifier] = {}
+    fitted_models: dict[str, object] = {}
 
     for model_name, model in models.items():
         model.fit(x_train, y_train)
@@ -67,46 +69,62 @@ def main() -> None:
 
         metrics = {
             "model": model_name,
-            "accuracy": float(accuracy_score(y_test, preds)),
-            "precision": float(precision_score(y_test, preds)),
-            "recall": float(recall_score(y_test, preds)),
-            "f1": float(f1_score(y_test, preds)),
+            "rmse": float(mean_squared_error(y_test, preds) ** 0.5),
+            "mae": float(mean_absolute_error(y_test, preds)),
+            "r2": float(r2_score(y_test, preds)),
         }
         results.append(metrics)
         fitted_models[model_name] = model
 
-    leaderboard = pd.DataFrame(results).sort_values(by="f1", ascending=False).reset_index(drop=True)
+    leaderboard = (
+        pd.DataFrame(results).sort_values(by="rmse", ascending=True).reset_index(drop=True)
+    )
     best_model_name = str(leaderboard.iloc[0]["model"])
     best_model = fitted_models[best_model_name]
     best_preds = best_model.predict(x_test)
 
     summary = {
         "best_model": best_model_name,
-        "selection_metric": "f1",
+        "selection_metric": "rmse",
         "models": leaderboard.to_dict(orient="records"),
     }
     (artifacts_dir / "metrics.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     leaderboard.to_csv(artifacts_dir / "leaderboard.csv", index=False)
+    joblib.dump(best_model, artifacts_dir / "best_model.joblib")
 
     metrics_md_lines = [
         "## Model Metrics",
         "",
         format_markdown_table(leaderboard),
         "",
-        f"Best model by `f1`: `{best_model_name}`",
+        f"Best model by `rmse`: `{best_model_name}`",
     ]
     (artifacts_dir / "metrics.txt").write_text("\n".join(metrics_md_lines) + "\n", encoding="utf-8")
 
-    ConfusionMatrixDisplay.from_predictions(
-        y_test,
-        best_preds,
-        normalize="true",
-        cmap=plt.cm.Blues,
-    )
-    plt.title(f"Confusion Matrix ({best_model_name})")
+    residuals = y_test - best_preds
+    plt.figure(figsize=(8, 6))
+    plt.scatter(best_preds, residuals, alpha=0.25, edgecolor="none")
+    plt.axhline(0.0, color="black", linestyle="--", linewidth=1)
+    plt.xlabel("Predicted target")
+    plt.ylabel("Residual (y_true - y_pred)")
+    plt.title(f"Residual Plot ({best_model_name})")
     plt.tight_layout()
-    plt.savefig(artifacts_dir / "confusion_matrix.png", dpi=150)
+    plt.savefig(artifacts_dir / "residuals_plot.png", dpi=150)
     plt.close()
+
+    if hasattr(best_model, "feature_importances_"):
+        importance_values = best_model.feature_importances_
+    elif hasattr(best_model, "named_steps") and hasattr(best_model.named_steps.get("reg"), "coef_"):
+        importance_values = abs(best_model.named_steps["reg"].coef_)
+    else:
+        importance_values = [0.0 for _ in feature_cols]
+
+    importance_df = (
+        pd.DataFrame({"feature": feature_cols, "importance": importance_values})
+        .sort_values("importance", ascending=False)
+        .reset_index(drop=True)
+    )
+    importance_df.to_csv(artifacts_dir / "feature_importance.csv", index=False)
 
     print(f"Training finished. Best model: {best_model_name}")
 

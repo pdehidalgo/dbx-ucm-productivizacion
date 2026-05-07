@@ -1,4 +1,4 @@
-name: CML Project
+name: CML Project (California Housing)
 
 on:
   pull_request:
@@ -38,14 +38,20 @@ jobs:
       - name: Validate dataset
         run: uv run --project cml_project python cml_project/src/validate_data.py
 
+      - name: Smoke train gate
+        run: uv run --project cml_project python cml_project/src/smoke_train.py
+
       - name: Upload validated data
         uses: actions/upload-artifact@v4
         with:
           name: validated-data
           path: |
             cml_project/data/processed
+            cml_project/artifacts/data_summary.json
             cml_project/artifacts/data_validation.json
             cml_project/artifacts/data_validation.md
+            cml_project/artifacts/smoke_train.json
+            cml_project/artifacts/smoke_train.md
 
   train-evaluate:
     needs: data-validation
@@ -81,10 +87,13 @@ jobs:
           name: training-results
           path: |
             cml_project/artifacts/data_validation.json
+            cml_project/artifacts/smoke_train.json
             cml_project/artifacts/metrics.json
             cml_project/artifacts/metrics.txt
             cml_project/artifacts/leaderboard.csv
-            cml_project/artifacts/confusion_matrix.png
+            cml_project/artifacts/feature_importance.csv
+            cml_project/artifacts/residuals_plot.png
+            cml_project/artifacts/best_model.joblib
 
   cml-report:
     needs: train-evaluate

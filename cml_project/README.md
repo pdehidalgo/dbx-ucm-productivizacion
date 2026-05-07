@@ -1,54 +1,49 @@
-# Laboratorio: CML para Pipelines de ML en CI
+# Laboratorio: CML para California Housing en CI
 
-Este laboratorio adapta el enfoque oficial de `iterative/cml` (getting started + ejemplos practicos) a un caso docente para explicar pipelines de MLOps en GitHub Actions.
+Este laboratorio implementa un pipeline de `iterative/cml` para un caso de **regresion tabular** con el dataset **California Housing**.
 
-## Objetivo del laboratorio
+## Objetivo
 
-Construir un pipeline CI de 3 etapas que:
+Construir un flujo de CI aplicable a MLOps real que:
 
-1. valida datos,
-2. entrena y evalua varios modelos,
-3. publica un reporte automatico en la Pull Request con CML.
+1. valida datos (schema + calidad),
+2. ejecuta una puerta de smoke training en CI,
+3. entrena y compara modelos de regresion,
+4. publica un reporte automatico en PR con CML.
+
+## Relacion con CI / CT / CD
+
+- **CI (implementado aqui)**: `lint/tests` (si se anaden), validacion de datos, smoke train y packaging de artefactos.
+- **CT (simulado en el job train-evaluate)**: entrenamiento completo y evaluacion comparativa con criterio de seleccion.
+- **CD (conceptual en el notebook base)**: promover un modelo ya evaluado; no se reentrena al desplegar.
 
 ## Pipeline en GitHub Actions
 
-El workflow esta en:
+Workflow:
 
 - `/.github/workflows/cml_project.yml`
 
-Y ejecuta estos jobs encadenados:
+Jobs encadenados:
 
 1. `data-validation`
 2. `train-evaluate`
 3. `cml-report`
 
-El job final genera un comentario en la PR con:
+## Dataset y modelos
 
-- resumen de validacion de datos,
-- tabla de metricas por modelo,
-- mejor modelo seleccionado,
-- matriz de confusion del mejor modelo.
-
-## Dataset y modelo del ejemplo base
-
-- Dataset: `Breast Cancer Wisconsin` de `scikit-learn` (clasificacion binaria tabular).
+- Dataset: `fetch_california_housing` de `scikit-learn`.
 - Modelos comparados:
-  - `LogisticRegression` (baseline lineal),
-  - `RandomForestClassifier` (baseline no lineal).
+  - `LinearRegression` (baseline lineal),
+  - `RandomForestRegressor` (baseline no lineal),
+  - `HistGradientBoostingRegressor` (baseline boosting).
 
-## Variantes recomendadas para el curso
+Metrica principal de seleccion:
 
-1. Clasificacion tabular (intro a pipelines)
-- Dataset: `Titanic` (Kaggle/OpenML) o `Adult Income` (OpenML).
-- Modelos: `LogisticRegression`, `RandomForest`, `XGBoost`.
+- `RMSE` (menor es mejor).
 
-2. Regresion tabular (metricas de negocio)
-- Dataset: `California Housing`.
-- Modelos: `LinearRegression`, `RandomForestRegressor`, `XGBoostRegressor`.
+Metricas reportadas:
 
-3. Series temporales (pipeline por ventanas)
-- Dataset: `Bike Sharing` o `M4 subset`.
-- Modelos: baseline `naive`, `LightGBM`, `Prophet` (si quieres comparar enfoques).
+- `RMSE`, `MAE`, `R2`.
 
 ## Estructura
 
@@ -59,21 +54,23 @@ cml_project/
 - src/
   - build_report.py
   - get_data.py
+  - smoke_train.py
   - train.py
   - validate_data.py
 ```
 
-## Ejecucion local
+## Ejecucion local end-to-end
 
 ```bash
 uv sync --locked --package cml_project
 uv run --project cml_project python cml_project/src/get_data.py
 uv run --project cml_project python cml_project/src/validate_data.py
+uv run --project cml_project python cml_project/src/smoke_train.py
 uv run --project cml_project python cml_project/src/train.py
 uv run --project cml_project python cml_project/src/build_report.py
 ```
 
-Tambien puedes ejecutar el flujo completo con:
+O bien:
 
 ```bash
 cd cml_project
@@ -83,34 +80,18 @@ make run
 
 Artefactos esperados:
 
+- `artifacts/data_summary.json`
 - `artifacts/data_validation.json`
+- `artifacts/smoke_train.json`
 - `artifacts/metrics.json`
 - `artifacts/leaderboard.csv`
-- `artifacts/confusion_matrix.png`
+- `artifacts/feature_importance.csv`
+- `artifacts/residuals_plot.png`
+- `artifacts/best_model.joblib`
 - `report.md`
 
-## Referencias oficiales usadas
+## Referencias
 
 - https://github.com/iterative/cml#getting-started
 - https://github.com/iterative-test/cml-example-minimal
 - https://github.com/iterative-test/cml-example-dvc
-
-
-
-## CML NO incluye out of the box:
-
-- tracking avanzado tipo MLflow
-- model registry
-- serving
-- monitorización en producción
-- triggers por datos (CT real)
-- feature store
-
-
-## Sin CML tendrías que construir:
-
-- integración con GitHub API
-- sistema de reporting
-- gestión de artefactos
-- scripts de publicación
-- parte del pipeline CI

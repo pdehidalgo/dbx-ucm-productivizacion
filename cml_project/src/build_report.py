@@ -9,6 +9,7 @@ def main() -> None:
     artifacts_dir = project_root / "artifacts"
     metrics_path = artifacts_dir / "metrics.json"
     validation_path = artifacts_dir / "data_validation.json"
+    smoke_path = artifacts_dir / "smoke_train.json"
     metrics_md_path = artifacts_dir / "metrics.txt"
 
     if not metrics_path.exists():
@@ -17,15 +18,20 @@ def main() -> None:
         raise FileNotFoundError(
             "Missing artifacts/data_validation.json. Run `python src/validate_data.py` first."
         )
+    if not smoke_path.exists():
+        raise FileNotFoundError(
+            "Missing artifacts/smoke_train.json. Run `python src/smoke_train.py` first."
+        )
     if not metrics_md_path.exists():
         raise FileNotFoundError("Missing artifacts/metrics.txt. Run `python src/train.py` first.")
 
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    smoke = json.loads(smoke_path.read_text(encoding="utf-8"))
     metrics_md = metrics_md_path.read_text(encoding="utf-8").strip()
 
     report_lines = [
-        "# CML Pipeline Lab Report",
+        "# CML Pipeline Lab Report (California Housing)",
         "",
         "## Pipeline Jobs",
         "",
@@ -39,11 +45,17 @@ def main() -> None:
         f"- Train rows: `{validation['rows']['train']}`",
         f"- Test rows: `{validation['rows']['test']}`",
         "",
+        "## CI Smoke Train Gate",
+        "",
+        f"- Smoke status: `{smoke['status']}`",
+        f"- Smoke model: `{smoke['model']}`",
+        f"- Smoke RMSE: `{smoke['rmse']:.4f}`",
+        "",
         metrics_md,
         "",
         f"Selected model: `{metrics['best_model']}`",
         "",
-        '![Confusion Matrix](./artifacts/confusion_matrix.png "Confusion Matrix")',
+        '![Residuals Plot](./artifacts/residuals_plot.png "Residuals Plot")',
     ]
 
     report_path = project_root / "report.md"
