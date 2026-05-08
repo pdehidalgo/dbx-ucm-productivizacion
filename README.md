@@ -1,3 +1,30 @@
+# Monorepo con uv
+
+Este repositorio está organizado como un monorepo de `uv` con 4 proyectos:
+
+- `airflow_project`
+- `telegram_project`
+- `databricks_project`
+- `cml_project`
+
+## Comandos rápidos
+
+```bash
+# Generar lockfile del workspace completo
+uv lock
+
+# Crear/sincronizar entorno con todas las dependencias de los 4 proyectos
+uv sync --all-packages
+
+# Ejecutar scripts por proyecto
+uv run --project telegram_project python telegram_project/evaluate_prompts.py --mode run_experiments
+uv run --project airflow_project python airflow_project/dags/test_pipeline.py
+uv run --project databricks_project python databricks_project/ML_Lab_MLflow_Databricks.py
+uv run --project cml_project python cml_project/src/train.py
+```
+
+Los notebooks/scripts de Databricks se encuentran ahora en `databricks_project/`.
+
 # Tutoriales para interactuar con el fichero airbnb.csv
 
 ## OPCIÓN 1: Cargar un fichero a ADLS y leerlo desde Databricks
@@ -72,7 +99,7 @@ NOTAS:
 - Asegúrate de que el cluster tiene acceso a Azure AD (mediante scope o identidad administrada).
 - Si tienes problemas, revisa el error exacto y asegúrate de que los permisos están correctamente asignados.
 
-## OPCIÓN 2: Subir el fichero manualmente a DBFS y crea una tabla con el Notebook DBFS_Example.py
+## OPCIÓN 2: Subir el fichero manualmente a DBFS y crea una tabla con el Notebook `databricks_project/DBFS_Example.py`
 
 ### Paso 1: Subir el Fichero
 
