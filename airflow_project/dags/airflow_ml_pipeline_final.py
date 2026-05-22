@@ -1,11 +1,14 @@
 # airflow_ml_pipelines.py
 from airflow.decorators import dag, task
-from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
 from datetime import timedelta, datetime
 import pandas as pd
 import os
+import json
+import logging
+import shutil
+import tempfile
 import mlflow
 import mlflow.sklearn
 from sklearn.metrics import accuracy_score, precision_score
@@ -31,6 +34,12 @@ DATA_SOURCE_TYPE = config["factories"]["data_source_type"]
 TRAINING_TABLE = config["factories"]["training_table"]
 TEST_TABLE = config["factories"]["test_table"]
 
+FEATURE_COLUMNS = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+DRIFT_DETECTOR_ARTIFACT_PATH = "drift_detector"
+DRIFT_P_VALUE = 0.05
+
+logger = logging.getLogger(__name__)
+
 
 # Default args
 default_args = {
@@ -38,7 +47,7 @@ default_args = {
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 10,
+    "retries": 3,
     "retry_delay": timedelta(minutes=5),
 }
 
@@ -52,7 +61,7 @@ class LocalCSVReader(DataReader):
         # NOTE: mocking input pd.read_csv(source)
         import seaborn as sns
         iris = sns.load_dataset("iris")
-        return iris.sample(5, random_state=99)
+        return iris.sample(30, random_state=99)
 
 class DeltaTableReader(DataReader):
     # TODO: 1. NOT WORKING
@@ -200,16 +209,19 @@ def preprocessing_training_pipeline():
 
     @task()
     def train_and_register(data_json):
+        from alibi_detect.cd import TabularDrift
+        from alibi_detect.utils.saving import save_detector
         from sklearn.model_selection import train_test_split
 
         df = pd.read_json(data_json)
-        X = df[['sepal_length','sepal_width','petal_length','petal_width']]
+        X = df[FEATURE_COLUMNS]
         y = df['species']
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
         model_type = Variable.get("model_type", default_var="random_forest")
         metrics = Variable.get("metrics", default_var="accuracy,precision").split(",")
         main_metric = Variable.get("main_metric", default_var="accuracy")
+        force_register_model = Variable.get("force_register_model", default_var="false").lower() == "true"
 
         mlflow.set_tracking_uri("http://mlflow:5000")
 
@@ -234,6 +246,16 @@ def preprocessing_training_pipeline():
             results = trainer.train_and_log(X_train, X_test, y_train, y_test, metrics)
             new_value = results.get(main_metric, 0.0)
 
+            # Build and version the drift detector with the same training run.
+            drift_detector_dir = tempfile.mkdtemp(prefix="drift_detector_")
+            try:
+                drift_detector = TabularDrift(X_train.to_numpy(), p_val=DRIFT_P_VALUE)
+                save_detector(drift_detector, drift_detector_dir)
+                mlflow.log_artifacts(drift_detector_dir, artifact_path=DRIFT_DETECTOR_ARTIFACT_PATH)
+                mlflow.set_tag("has_drift_detector", "true")
+            finally:
+                shutil.rmtree(drift_detector_dir, ignore_errors=True)
+
             from mlflow.exceptions import RestException
             client = mlflow.tracking.MlflowClient()
 
@@ -247,10 +269,22 @@ def preprocessing_training_pipeline():
                     if old_value > best_value:
                         best_value = old_value
                 print(f"Best metric value: {best_value}, new value is: {new_value}")
-                if new_value >= best_value:
+                should_register = force_register_model or (new_value >= best_value)
+                if should_register:
                     mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME)
+                    mlflow.set_tag(
+                        "model_registration_reason",
+                        "forced_by_flag" if force_register_model else "metric_threshold",
+                    )
+                else:
+                    print(
+                        "Model registration skipped "
+                        f"(force_register_model={force_register_model}, "
+                        f"new_value={new_value}, best_value={best_value})"
+                    )
             except RestException:
                 mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME)
+                mlflow.set_tag("model_registration_reason", "first_registration_or_registry_missing")
 
         return f"Training completed. {main_metric}={new_value}"
 
@@ -260,24 +294,80 @@ def preprocessing_training_pipeline():
 
 
 # Alibi monitoring
-@task()
+@task.branch(task_id="check_monitoring_condition")
 def conditional_monitoring():
     df = pd.read_csv(PREDICTIONS_PATH)
-    new_data = df.tail(20)  # Últimos 20 registros
+    # new_data = df.tail(20)  # Asumimos últimos 20 registros
+    new_data = df
+
     if len(new_data) < 20:
         return "skip_monitoring"
-    else:
-        from alibi_detect.cd import TabularDrift
-        from alibi_detect.utils.saving import save_detector
 
-        reference = df.iloc[:-20].drop(columns=["prediction"])
-        current = df.iloc[-20:].drop(columns=["prediction"])
+    from alibi_detect.utils.saving import load_detector
 
-        detector = TabularDrift(reference.to_numpy(), p_val=0.05)
-        preds = detector.predict(current.to_numpy())
-        save_detector(detector, "./drift_detector/")
-        print("Drift scores:", preds["data"]["p_val"])
-        return "monitoring_done"
+    mlflow.set_tracking_uri("http://mlflow:5000")
+    client = mlflow.tracking.MlflowClient()
+
+    model_versions = client.search_model_versions(f"name = '{MODEL_NAME}'")
+    if not model_versions:
+        raise ValueError(f"No registered versions found for model '{MODEL_NAME}'")
+
+    latest_model_version = max(model_versions, key=lambda mv: int(mv.version))
+    try:
+        detector_path = mlflow.artifacts.download_artifacts(
+            run_id=latest_model_version.run_id,
+            artifact_path=DRIFT_DETECTOR_ARTIFACT_PATH,
+            dst_path="/tmp",
+        )
+        detector = load_detector(detector_path)
+    except Exception as exc:
+        raise ValueError(
+            "Latest registered model does not contain a compatible drift detector artifact "
+            f"(model_version={latest_model_version.version}, run_id={latest_model_version.run_id})"
+        ) from exc
+
+    current = df.iloc[-20:].drop(columns=["prediction"])
+
+    preds = detector.predict(current.to_numpy())
+
+    def _jsonify(value):
+        if isinstance(value, dict):
+            return {k: _jsonify(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_jsonify(v) for v in value]
+        if hasattr(value, "tolist"):
+            return value.tolist()
+        if hasattr(value, "item"):
+            return value.item()
+        return value
+
+    report_dir = "/opt/airflow/data/drift_reports"
+    os.makedirs(report_dir, exist_ok=True)
+    timestamp_utc = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    report_path = os.path.join(
+        report_dir,
+        f"drift_report_{timestamp_utc}_v{latest_model_version.version}.json",
+    )
+    report = {
+        "timestamp_utc": timestamp_utc,
+        "model_name": MODEL_NAME,
+        "model_version": latest_model_version.version,
+        "model_run_id": latest_model_version.run_id,
+        "window_size": int(len(current)),
+        "preds": _jsonify(preds),
+    }
+    with open(report_path, "w", encoding="utf-8") as file:
+        json.dump(report, file, indent=2)
+    shutil.copyfile(report_path, os.path.join(report_dir, "latest.json"))
+
+    logger.info(
+        "Loaded drift detector from model_version=%s run_id=%s",
+        latest_model_version.version,
+        latest_model_version.run_id,
+    )
+    logger.info("Drift scores: %s", preds["data"]["p_val"])
+    logger.info("Drift report saved to %s", report_path)
+    return "monitoring_done"
 
 @task()
 def skip_monitoring():
@@ -335,14 +425,9 @@ def inference_pipeline():
         combined.to_csv(PREDICTIONS_PATH, index=False)
         return "Predictions updated."
 
-    branch = BranchPythonOperator(
-        task_id="check_monitoring_condition",
-        python_callable=lambda: conditional_monitoring().output,
-        do_xcom_push=True
-    )
-
     input_data = load_input()
     pred = predict_with_latest_model(input_data)
+    branch = conditional_monitoring()
     pred >> branch >> [skip_monitoring(), monitoring_done()]
 
 

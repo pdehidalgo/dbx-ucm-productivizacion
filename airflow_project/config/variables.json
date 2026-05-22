@@ -1,5 +1,6 @@
 {
     "model_type": "random_forest", 
     "main_metric": "accuracy",
-    "metrics": "accuracy,precision"
+    "metrics": "accuracy,precision",
+    "force_register_model": "true"
 }

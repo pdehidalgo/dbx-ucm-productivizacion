@@ -11,17 +11,21 @@ services:
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW__CORE__LOAD_EXAMPLES: "false" # Set true for having a list of examples to play
       AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.default"
+      AIRFLOW__LOGGING__LOGGING_LEVEL: "INFO"
+      PYTHONUNBUFFERED: "1"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:////opt/airflow/metadata/airflow.db"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./data:/opt/airflow/data
       - ./config:/opt/airflow/config
       - ./mlruns:/mlflow/artifacts  
+      - ./airflow_metadata:/opt/airflow/metadata
     ports:
       - "8080:8080"
     command: >
       bash -c "
         airflow db migrate &&
-        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+        (airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true) &&
         airflow variables import /opt/airflow/config/variables.json &&
         airflow webserver & airflow scheduler
       "
@@ -35,8 +39,9 @@ services:
       - "5000:5000"
     command: >
       mlflow server
-      --backend-store-uri sqlite:///mlflow.db
+      --backend-store-uri sqlite:////mlflow/metadata/mlflow.db
       --default-artifact-root /mlflow/artifacts
       --host 0.0.0.0
     volumes:
       - ./mlruns:/mlflow/artifacts
+      - ./mlflow_metadata:/mlflow/metadata
