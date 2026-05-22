@@ -76,7 +76,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: validated-data
-          path: .
+          path: cml_project
 
       - name: Train and evaluate models
         run: uv run --project cml_project python cml_project/src/train.py
@@ -121,7 +121,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: training-results
-          path: .
+          path: cml_project/artifacts
 
       - name: Build markdown report
         run: uv run --project cml_project python cml_project/src/build_report.py
