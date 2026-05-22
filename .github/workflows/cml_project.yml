@@ -113,6 +113,8 @@ jobs:
 
       - name: Setup CML
         uses: iterative/setup-cml@v2
+        with:
+          vega: false
 
       - name: Install dependencies
         run: uv sync --locked --package cml_project
