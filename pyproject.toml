@@ -4,5 +4,4 @@ members = [
     "databricks_project",
     "cml_project",
     "notebooks_clase",
-    "california-housing-mcp-agent",
 ]
