@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 def format_markdown_table(df: pd.DataFrame) -> str:
+    """Build a Markdown table with the model evaluation metrics."""
     header = "| model | rmse | mae | r2 |"
     separator = "|---|---:|---:|---:|"
     rows = [
