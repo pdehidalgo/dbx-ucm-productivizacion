@@ -1,0 +1,23 @@
+artifact_path: file:D:/zxyua/Documents/dbx-ucm-productivizacion/notebooks_clase/tema_3_mlflow/mlruns/1/models/m-bc78fe42185b4281a990c8fe2e348ff3/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.13
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+mlflow_version: 3.12.0
+model_id: m-bc78fe42185b4281a990c8fe2e348ff3
+model_size_bytes: 365
+model_uuid: m-bc78fe42185b4281a990c8fe2e348ff3
+prompts: null
+run_id: 6f597143b2634835b94774d3c9970426
+utc_time_created: '2026-05-09 11:38:34.339227'

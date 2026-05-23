@@ -1,0 +1,26 @@
+artifact_path: file:D:/zxyua/Documents/dbx-ucm-productivizacion/notebooks_clase/tema_3_mlflow/mlruns/1/models/m-d4dab77bfb4b4ed386d8db0f6908df59/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.2
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.12.13
+    streamable: false
+is_signature_from_type_hint: false
+mlflow_version: 3.12.0
+model_id: m-d4dab77bfb4b4ed386d8db0f6908df59
+model_size_bytes: 2114
+model_uuid: m-d4dab77bfb4b4ed386d8db0f6908df59
+prompts: null
+run_id: 228caf3bd2d44d17990c6d08c828cd42
+signature:
+  inputs: '[{"type": "double", "name": 0, "required": true}, {"type": "double", "name":
+    1, "required": true}, {"type": "double", "name": 2, "required": true}]'
+  outputs: '[{"type": "long", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-05-09 11:24:19.871956'

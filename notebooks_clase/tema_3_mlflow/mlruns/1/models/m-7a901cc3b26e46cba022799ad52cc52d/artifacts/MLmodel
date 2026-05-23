@@ -1,0 +1,28 @@
+artifact_path: file:D:/zxyua/Documents/dbx-ucm-productivizacion/notebooks_clase/tema_3_mlflow/mlruns/1/models/m-7a901cc3b26e46cba022799ad52cc52d/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.12.13
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.sklearn.XGBClassifier
+    model_format: ubj
+    xgb_version: 3.2.0
+is_signature_from_type_hint: false
+mlflow_version: 3.12.0
+model_id: m-7a901cc3b26e46cba022799ad52cc52d
+model_size_bytes: 231222
+model_uuid: m-7a901cc3b26e46cba022799ad52cc52d
+prompts: null
+run_id: 98135d95656942bd9c70a6e5e62b5657
+signature:
+  inputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1, 4]}}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-05-09 11:38:42.649436'

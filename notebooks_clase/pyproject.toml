@@ -35,3 +35,15 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "cml_project*",
+    "airflow_project*",
+    "telegram_project*",
+    "databricks_project*"
+]
+exclude = [
+    "notebooks_clase*"
+]

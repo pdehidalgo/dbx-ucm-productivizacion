@@ -26,7 +26,7 @@ services:
       bash -c "
         airflow db migrate &&
         (airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true) &&
-        airflow variables import /opt/airflow/config/variables.json &&
+        (airflow variables import /opt/airflow/config/variables.json || true) &&
         airflow webserver & airflow scheduler
       "
       
