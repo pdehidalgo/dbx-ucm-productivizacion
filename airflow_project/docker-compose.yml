@@ -1,4 +1,4 @@
-version: '3'
+
 services:
   airflow:
     user: root # Avoid permission problem when registering artifact
@@ -21,9 +21,10 @@ services:
       - ./mlruns:/mlflow/artifacts  
       - ./airflow_metadata:/opt/airflow/metadata
     ports:
-      - "8080:8080"
+      - "8085:8080"
     command: >
       bash -c "
+        airflow db init
         airflow db migrate &&
         (airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true) &&
         airflow variables import /opt/airflow/config/variables.json &&
@@ -34,9 +35,9 @@ services:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: mlflow
     environment:
-      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
+      - MLFLOW_TRACKING_URI=http://0.0.0.0:5001
     ports:
-      - "5000:5000"
+      - "5001:5000"
     command: >
       mlflow server
       --backend-store-uri sqlite:////mlflow/metadata/mlflow.db
