@@ -1,4 +1,5 @@
 # airflow_ml_pipelines.py
+from abc import ABC, abstractmethod
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
@@ -13,6 +14,7 @@ import mlflow
 import mlflow.sklearn
 from sklearn.metrics import accuracy_score, precision_score
 from dotenv import load_dotenv
+from typing import Type
 
 load_dotenv()  
 
@@ -48,16 +50,17 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 3,
-    "retry_delay": timedelta(minutes=5),
+    "retry_delay": timedelta(minutes=1),
 }
 
 # Factory Pattern for data source readers
-class DataReader:
-    def read(self, source):
-        raise NotImplementedError
+class DataReader(ABC):
+    @abstractmethod
+    def read(self, source: str) -> pd.DataFrame:
+        """Load data from a configured source."""
 
 class LocalCSVReader(DataReader):
-    def read(self, source):
+    def read(self, source: str) -> pd.DataFrame:
         # NOTE: mocking input pd.read_csv(source)
         import seaborn as sns
         iris = sns.load_dataset("iris")
@@ -65,7 +68,7 @@ class LocalCSVReader(DataReader):
 
 class DeltaTableReader(DataReader):
     # TODO: 1. NOT WORKING
-    def read(self, source):
+    def read(self, source: str) -> pd.DataFrame:
         from databricks import sql
         connection = sql.connect(
             server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
@@ -80,25 +83,24 @@ class DeltaTableReader(DataReader):
         return df
 
 class ReaderFactory:
-
-    # TODO: improvement
-    readers = {
-
+    READERS: dict[str, Type[DataReader]] = {
+        "local": LocalCSVReader,
+        "delta": DeltaTableReader,
     }
 
     @staticmethod
-    def get_reader(source_type):
-        if source_type == "delta":
-            return DeltaTableReader()
-        return LocalCSVReader()
+    def get_reader(source_type: str) -> DataReader:
+        reader_cls = ReaderFactory.READERS.get(source_type, LocalCSVReader)
+        return reader_cls()
 
 # Factory Pattern for model training
-class ModelTrainer:
+class ModelTrainer(ABC):
     def __init__(self, experiment_name: str):
         self.experiment_name = experiment_name
 
+    @abstractmethod
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
-        raise NotImplementedError
+        """Train a model and log its artifacts and metrics to MLflow."""
 
 class RandomForestTrainer(ModelTrainer):
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
@@ -173,21 +175,23 @@ class XGBoostTrainer(ModelTrainer):
 
 
 class TrainerFactory:
-    # All classifiers
+    TRAINERS: dict[str, Type[ModelTrainer]] = {
+        "random_forest": RandomForestTrainer,
+        "logistic_regression": LogisticRegressionTrainer,
+        "xgboost": XGBoostTrainer,
+    }
+
     @staticmethod
     def get_trainer(model_type, experiment_name):
-        if model_type == "random_forest":
-            return RandomForestTrainer(experiment_name)
-        elif model_type == "logistic_regression":
-            return LogisticRegressionTrainer(experiment_name)
-        elif model_type == "xgboost":
-            return XGBoostTrainer(experiment_name)
-        raise ValueError(f"Unsupported model_type: {model_type}")
+        trainer_cls = TrainerFactory.TRAINERS.get(model_type)
+        if trainer_cls is None:
+            raise ValueError(f"Unsupported model_type: {model_type}")
+        return trainer_cls(experiment_name)
 
 @dag(
     dag_id="ml_pipeline_preprocessing_training",
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval="@daily",
     start_date=days_ago(1),
     catchup=False,
     tags=["ml", "training"]
@@ -241,7 +245,7 @@ def preprocessing_training_pipeline():
                 model_type=model_type,
                 experiment_name=EXPERIMENT_NAME
             )
-            print("Active run:", mlflow.active_run().info.run_id)
+            logger.info("Active run:", mlflow.active_run().info.run_id)
 
             results = trainer.train_and_log(X_train, X_test, y_train, y_test, metrics)
             new_value = results.get(main_metric, 0.0)
@@ -268,7 +272,7 @@ def preprocessing_training_pipeline():
                     old_value = float(m.data.metrics.get(main_metric, 0))
                     if old_value > best_value:
                         best_value = old_value
-                print(f"Best metric value: {best_value}, new value is: {new_value}")
+                logger.info(f"Best metric value: {best_value}, new value is: {new_value}")
                 should_register = force_register_model or (new_value >= best_value)
                 if should_register:
                     mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME)
@@ -277,7 +281,7 @@ def preprocessing_training_pipeline():
                         "forced_by_flag" if force_register_model else "metric_threshold",
                     )
                 else:
-                    print(
+                    logger.info(
                         "Model registration skipped "
                         f"(force_register_model={force_register_model}, "
                         f"new_value={new_value}, best_value={best_value})"
