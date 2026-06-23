@@ -32,6 +32,7 @@ def validate_target(df: pd.DataFrame, split: str) -> None:
         )
 
 
+
 def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
     data_dir = project_root / "data" / "processed"
