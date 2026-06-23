@@ -98,6 +98,6 @@ def main() -> None:
 
     print(f"Data validation passed -> {summary_path}")
 
-
+# Cambio simple iym
 if __name__ == "__main__":
     main()
