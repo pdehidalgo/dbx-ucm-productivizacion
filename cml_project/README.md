@@ -13,6 +13,7 @@ Construir un flujo de CI aplicable a MLOps real que:
 
 ## Relacion con CI / CT / CD
 
+
 - **CI (implementado aqui)**: `lint/tests` (si se anaden), validacion de datos, smoke train y packaging de artefactos.
 - **CT (simulado en el job train-evaluate)**: entrenamiento completo y evaluacion comparativa con criterio de seleccion.
 - **CD (conceptual en el notebook base)**: promover un modelo ya evaluado; no se reentrena al desplegar.
