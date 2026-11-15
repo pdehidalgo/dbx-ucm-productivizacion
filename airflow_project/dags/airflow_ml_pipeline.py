@@ -1,29 +1,32 @@
 # airflow_ml_pipelines.py
-from abc import ABC, abstractmethod
-from airflow.decorators import dag, task
-from airflow.utils.dates import days_ago
-from airflow.models import Variable
-from datetime import timedelta, datetime
-import pandas as pd
-import os
 import json
 import logging
+import os
 import shutil
 import tempfile
-import mlflow
-import mlflow.sklearn
-from sklearn.metrics import accuracy_score, precision_score
-from dotenv import load_dotenv
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
 from typing import Type
 
-load_dotenv()  
+import mlflow
+import mlflow.sklearn
+import pandas as pd
+from airflow.decorators import dag, task
+from airflow.models import Variable
+from airflow.utils.dates import days_ago
+from dotenv import load_dotenv
+from sklearn.metrics import accuracy_score, precision_score
+
+load_dotenv()
 
 # Config
 import yaml
 
+
 def load_config(path="config.yaml"):
     with open(path, "r") as file:
         return yaml.safe_load(file)
+
 
 config = load_config("/opt/airflow/config/config.yaml")
 
@@ -40,6 +43,8 @@ FEATURE_COLUMNS = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
 DRIFT_DETECTOR_ARTIFACT_PATH = "drift_detector"
 DRIFT_P_VALUE = 0.05
 
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,34 +58,42 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
 }
 
+
 # Factory Pattern for data source readers
 class DataReader(ABC):
     @abstractmethod
     def read(self, source: str) -> pd.DataFrame:
         """Load data from a configured source."""
 
+
 class LocalCSVReader(DataReader):
     def read(self, source: str) -> pd.DataFrame:
         # NOTE: mocking input pd.read_csv(source)
         import seaborn as sns
+
         iris = sns.load_dataset("iris")
         return iris.sample(30, random_state=99)
+
 
 class DeltaTableReader(DataReader):
     # TODO: 1. NOT WORKING
     def read(self, source: str) -> pd.DataFrame:
         from databricks import sql
+
         connection = sql.connect(
             server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
             http_path=os.getenv("DATABRICKS_HTTP_PATH"),
-            access_token=os.getenv("DATABRICKS_TOKEN")
+            access_token=os.getenv("DATABRICKS_TOKEN"),
         )
         cursor = connection.cursor()
         cursor.execute(f"SELECT * FROM {source}")
-        df = pd.DataFrame(cursor.fetchall(), columns=[desc[0] for desc in cursor.description])
+        df = pd.DataFrame(
+            cursor.fetchall(), columns=[desc[0] for desc in cursor.description]
+        )
         cursor.close()
         connection.close()
         return df
+
 
 class ReaderFactory:
     READERS: dict[str, Type[DataReader]] = {
@@ -93,6 +106,7 @@ class ReaderFactory:
         reader_cls = ReaderFactory.READERS.get(source_type, LocalCSVReader)
         return reader_cls()
 
+
 # Factory Pattern for model training
 class ModelTrainer(ABC):
     def __init__(self, experiment_name: str):
@@ -102,10 +116,11 @@ class ModelTrainer(ABC):
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
         """Train a model and log its artifacts and metrics to MLflow."""
 
+
 class RandomForestTrainer(ModelTrainer):
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
-        from sklearn.ensemble import RandomForestClassifier
         import mlflow
+        from sklearn.ensemble import RandomForestClassifier
 
         mlflow.set_experiment(self.experiment_name)
 
@@ -122,14 +137,20 @@ class RandomForestTrainer(ModelTrainer):
         for metric, value in results.items():
             mlflow.log_metric(metric, value)
 
-        mlflow.sklearn.log_model(clf, artifact_path="model")
+        # artifact_path está deprecado
+        # Ver: https://mlflow.org/docs/latest/api_reference/python_api/mlflow.sklearn.html#mlflow.sklearn.log_model
+        # skops_trusted_types para evitar el error: Untrusted types found in the file: ['sklearn.tree._tree.Tree']
+        mlflow.sklearn.log_model(
+            clf, name="model", skops_trusted_types=["sklearn.tree._tree.Tree"]
+        )
         return results
+
 
 class LogisticRegressionTrainer(ModelTrainer):
     # TODO: 2. Test & review metrics
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
-        from sklearn.linear_model import LogisticRegression
         import mlflow
+        from sklearn.linear_model import LogisticRegression
 
         mlflow.set_experiment(self.experiment_name)
 
@@ -146,18 +167,21 @@ class LogisticRegressionTrainer(ModelTrainer):
         for metric, value in results.items():
             mlflow.log_metric(metric, value)
 
-        mlflow.sklearn.log_model(clf, artifact_path="model")
+        # artifact_path está deprecado
+        # Ver: https://mlflow.org/docs/latest/api_reference/python_api/mlflow.sklearn.html#mlflow.sklearn.log_model
+        mlflow.sklearn.log_model(clf, name="model")
         return results
-    
+
+
 class XGBoostTrainer(ModelTrainer):
     # TODO: test and execute
     def train_and_log(self, X_train, X_test, y_train, y_test, metrics):
-        import xgboost as xgb
         import mlflow
+        import xgboost as xgb
 
         mlflow.set_experiment(self.experiment_name)
 
-        clf = xgb.XGBClassifier(eval_metric='mlogloss', use_label_encoder=False)
+        clf = xgb.XGBClassifier(eval_metric="mlogloss", use_label_encoder=False)
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
 
@@ -170,7 +194,9 @@ class XGBoostTrainer(ModelTrainer):
         for metric, value in results.items():
             mlflow.log_metric(metric, value)
 
-        mlflow.xgboost.log_model(clf, artifact_path="model")
+        # artifact_path está deprecado
+        # Ver: https://mlflow.org/docs/latest/api_reference/python_api/mlflow.xgboost.html#module-mlflow.xgboost
+        mlflow.xgboost.log_model(clf, name="model")
         return results
 
 
@@ -188,16 +214,16 @@ class TrainerFactory:
             raise ValueError(f"Unsupported model_type: {model_type}")
         return trainer_cls(experiment_name)
 
+
 @dag(
     dag_id="ml_pipeline_preprocessing_training",
     default_args=default_args,
     schedule_interval="@daily",
     start_date=days_ago(1),
     catchup=False,
-    tags=["ml", "training"]
+    tags=["ml", "training"],
 )
 def preprocessing_training_pipeline():
-
     @task()
     def load_data():
         reader = ReaderFactory.get_reader(DATA_SOURCE_TYPE)
@@ -219,15 +245,17 @@ def preprocessing_training_pipeline():
 
         df = pd.read_json(data_json)
         X = df[FEATURE_COLUMNS]
-        y = df['species']
+        y = df["species"]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
         model_type = Variable.get("model_type", default_var="random_forest")
         metrics = Variable.get("metrics", default_var="accuracy,precision").split(",")
         main_metric = Variable.get("main_metric", default_var="accuracy")
-        force_register_model = Variable.get("force_register_model", default_var="false").lower() == "true"
+        force_register_model = (
+            Variable.get("force_register_model", default_var="false").lower() == "true"
+        )
 
-        mlflow.set_tracking_uri("http://mlflow:5000")
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
         # os.makedirs("/home/airflow/mlruns", exist_ok=True)
 
@@ -235,17 +263,16 @@ def preprocessing_training_pipeline():
         if experiment is None:
             experiment_id = mlflow.set_experiment(
                 EXPERIMENT_NAME,
-                # artifact_location="file:///opt/airflow/mlruns" 
-                ).experiment_id
+                # artifact_location="file:///opt/airflow/mlruns"
+            ).experiment_id
         else:
             experiment_id = experiment.experiment_id
 
         with mlflow.start_run(experiment_id=experiment_id):
             trainer = TrainerFactory.get_trainer(
-                model_type=model_type,
-                experiment_name=EXPERIMENT_NAME
+                model_type=model_type, experiment_name=EXPERIMENT_NAME
             )
-            logger.info("Active run:", mlflow.active_run().info.run_id)
+            logger.info("Active run: %s", mlflow.active_run().info.run_id)
 
             results = trainer.train_and_log(X_train, X_test, y_train, y_test, metrics)
             new_value = results.get(main_metric, 0.0)
@@ -255,12 +282,15 @@ def preprocessing_training_pipeline():
             try:
                 drift_detector = TabularDrift(X_train.to_numpy(), p_val=DRIFT_P_VALUE)
                 save_detector(drift_detector, drift_detector_dir)
-                mlflow.log_artifacts(drift_detector_dir, artifact_path=DRIFT_DETECTOR_ARTIFACT_PATH)
+                mlflow.log_artifacts(
+                    drift_detector_dir, artifact_path=DRIFT_DETECTOR_ARTIFACT_PATH
+                )
                 mlflow.set_tag("has_drift_detector", "true")
             finally:
                 shutil.rmtree(drift_detector_dir, ignore_errors=True)
 
             from mlflow.exceptions import RestException
+
             client = mlflow.tracking.MlflowClient()
 
             # Code for registering the model
@@ -272,13 +302,19 @@ def preprocessing_training_pipeline():
                     old_value = float(m.data.metrics.get(main_metric, 0))
                     if old_value > best_value:
                         best_value = old_value
-                logger.info(f"Best metric value: {best_value}, new value is: {new_value}")
+                logger.info(
+                    f"Best metric value: {best_value}, new value is: {new_value}"
+                )
                 should_register = force_register_model or (new_value >= best_value)
                 if should_register:
-                    mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME)
+                    mlflow.register_model(
+                        f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME
+                    )
                     mlflow.set_tag(
                         "model_registration_reason",
-                        "forced_by_flag" if force_register_model else "metric_threshold",
+                        "forced_by_flag"
+                        if force_register_model
+                        else "metric_threshold",
                     )
                 else:
                     logger.info(
@@ -287,8 +323,13 @@ def preprocessing_training_pipeline():
                         f"new_value={new_value}, best_value={best_value})"
                     )
             except RestException:
-                mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME)
-                mlflow.set_tag("model_registration_reason", "first_registration_or_registry_missing")
+                mlflow.register_model(
+                    f"runs:/{mlflow.active_run().info.run_id}/model", MODEL_NAME
+                )
+                mlflow.set_tag(
+                    "model_registration_reason",
+                    "first_registration_or_registry_missing",
+                )
 
         return f"Training completed. {main_metric}={new_value}"
 
@@ -309,7 +350,7 @@ def conditional_monitoring():
 
     from alibi_detect.utils.saving import load_detector
 
-    mlflow.set_tracking_uri("http://mlflow:5000")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     client = mlflow.tracking.MlflowClient()
 
     model_versions = client.search_model_versions(f"name = '{MODEL_NAME}'")
@@ -347,7 +388,7 @@ def conditional_monitoring():
 
     report_dir = "/opt/airflow/data/drift_reports"
     os.makedirs(report_dir, exist_ok=True)
-    timestamp_utc = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    timestamp_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     report_path = os.path.join(
         report_dir,
         f"drift_report_{timestamp_utc}_v{latest_model_version.version}.json",
@@ -373,9 +414,11 @@ def conditional_monitoring():
     logger.info("Drift report saved to %s", report_path)
     return "monitoring_done"
 
+
 @task()
 def skip_monitoring():
     print("Not enough data for monitoring")
+
 
 @task()
 def monitoring_done():
@@ -388,26 +431,30 @@ def monitoring_done():
     schedule_interval=None,
     start_date=days_ago(1),
     catchup=False,
-    tags=["ml", "inference"]
+    tags=["ml", "inference"],
 )
 def inference_pipeline():
-
     @task()
     def load_input():
         reader = ReaderFactory.get_reader(DATA_SOURCE_TYPE)
-        df = reader.read(TEST_PATH if DATA_SOURCE_TYPE == "local" else "default.test_table")
+        df = reader.read(
+            TEST_PATH if DATA_SOURCE_TYPE == "local" else "default.test_table"
+        )
         return df.to_json()
 
     @task()
     def predict_with_latest_model(data_json):
         from mlflow.tracking import MlflowClient
-        df = pd.read_json(data_json)[['sepal_length','sepal_width','petal_length','petal_width']]
+
+        df = pd.read_json(data_json)[
+            ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+        ]
 
         print(df)
 
         # client = MlflowClient()
         # os.makedirs("/opt/airflow/artifacts", exist_ok=True)
-        mlflow.set_tracking_uri("http://mlflow:5000")
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
         client = MlflowClient()
         models = client.search_registered_models()
@@ -419,11 +466,15 @@ def inference_pipeline():
         model = mlflow.pyfunc.load_model(model_uri)
 
         print(model)
-        
+
         predictions = model.predict(df)
         df["prediction"] = predictions
 
-        existing = pd.read_csv(PREDICTIONS_PATH) if os.path.exists(PREDICTIONS_PATH) else pd.DataFrame()
+        existing = (
+            pd.read_csv(PREDICTIONS_PATH)
+            if os.path.exists(PREDICTIONS_PATH)
+            else pd.DataFrame()
+        )
         combined = pd.concat([existing, df], ignore_index=True)
         combined.drop_duplicates(inplace=True)
         combined.to_csv(PREDICTIONS_PATH, index=False)
@@ -438,4 +489,3 @@ def inference_pipeline():
 # Register DAGs
 d1 = preprocessing_training_pipeline()
 d2 = inference_pipeline()
-    
