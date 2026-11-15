@@ -1,4 +1,5 @@
-version: '3'
+# Se va a deprecar, ver: https://forums.docker.com/t/docker-compose-yml-version-is-obsolete/141313
+# version: '3'
 services:
   airflow:
     user: root # Avoid permission problem when registering artifact
@@ -14,11 +15,12 @@ services:
       AIRFLOW__LOGGING__LOGGING_LEVEL: "INFO"
       PYTHONUNBUFFERED: "1"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:////opt/airflow/metadata/airflow.db"
+      MLFLOW_TRACKING_URI: "http://mlflow:5000"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./data:/opt/airflow/data
       - ./config:/opt/airflow/config
-      - ./mlruns:/mlflow/artifacts  
+      - ./mlruns:/mlflow/artifacts
       - ./airflow_metadata:/opt/airflow/metadata
     ports:
       - "8080:8080"
@@ -29,19 +31,23 @@ services:
         airflow variables import /opt/airflow/config/variables.json &&
         airflow webserver & airflow scheduler
       "
-      
+    depends_on:
+      - mlflow
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: mlflow
-    environment:
-      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
     ports:
       - "5000:5000"
+    # Acceso denegado desde otros hosts
+    # Ver: https://mlflow.org/docs/latest/self-hosting/#faqs
+    # Ver: https://mlflow.org/docs/latest/self-hosting/security/network/#allowed-hosts
     command: >
       mlflow server
       --backend-store-uri sqlite:////mlflow/metadata/mlflow.db
       --default-artifact-root /mlflow/artifacts
       --host 0.0.0.0
+      --allowed-hosts mlflow:5000,localhost:5000,127.0.0.1:5000
     volumes:
       - ./mlruns:/mlflow/artifacts
       - ./mlflow_metadata:/mlflow/metadata
